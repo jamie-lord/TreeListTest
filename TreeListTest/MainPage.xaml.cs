@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Runtime.InteropServices.WindowsRuntime;
+using System.Threading.Tasks;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
 using Windows.UI.Xaml;
@@ -27,12 +28,12 @@ namespace TreeListTest
         {
             InitializeComponent();
 
-            TreeListView.ItemsSource = Nodes;
+            TreeListView.ItemsSource = ItemsSource;
 
             //var t = Nodes.FlattenWithLevel(X => X.GetChildren()).Select(x => x.Item1);
         }
 
-        public ObservableCollection<Node> Nodes = new ObservableCollection<Node>(RootNodes().FlattenWithLevel(X => X.GetChildren()).Select(x => x.Item1));
+        public TreeDataSource ItemsSource = new TreeDataSource(RootNodes());
 
         private static IEnumerable<Node> RootNodes()
         {
@@ -41,6 +42,57 @@ namespace TreeListTest
                 yield return new Node(0, $"Root node {i}");
             }
         }
+    }
+
+    public class TreeDataSource : ObservableCollection<Node>, ISupportIncrementalLoading
+    {
+        private readonly IEnumerable<Node> _nodes;
+
+        private bool _hasMoreItems = true;
+
+        private int _page = 0;
+
+        private const int PAGE_SIZE = 10;
+
+        public TreeDataSource(IEnumerable<Node> rootNodes)
+        {
+            _nodes = rootNodes.FlattenWithLevel(X => X.GetChildren()).Select(x => x.Item1);
+        }
+
+        public IAsyncOperation<LoadMoreItemsResult> LoadMoreItemsAsync(uint count)
+        {
+            var dispatcher = Window.Current.Dispatcher;
+
+            return Task.Run<LoadMoreItemsResult>(async () =>
+            {
+                uint resultCount = 0;
+
+                IEnumerable<Node> page = _nodes.GetPage(_page, PAGE_SIZE);
+
+                _page++;
+
+                if (page == null || page.Count() == 0)
+                {
+                    _hasMoreItems = false;
+                }
+                else
+                {
+                    resultCount = (uint)page.Count();
+
+                    await dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
+                    {
+                        foreach (var node in page)
+                        {
+                            Add(node);
+                        }
+                    });
+                }
+
+                return new LoadMoreItemsResult() { Count = resultCount };
+            }).AsAsyncOperation();
+        }
+
+        public bool HasMoreItems => _hasMoreItems;
     }
 
     public static class NodeOperations
@@ -62,6 +114,11 @@ namespace TreeListTest
                     stack.Push(new Tuple<T, int>(child, current.Item2 + 1));
                 }
             }
+        }
+
+        public static IEnumerable<Node> GetPage(this IEnumerable<Node> input, int page, int pagesize)
+        {
+            return input.Skip(page * pagesize).Take(pagesize);
         }
     }
 

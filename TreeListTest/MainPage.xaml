@@ -12,7 +12,7 @@
         <ListView x:Name="TreeListView">
             <ListView.ItemTemplate>
                 <DataTemplate>
-                    <TextBlock Text="{Binding Label}"/>
+                    <TextBlock Text="{Binding Label}" Padding="{Binding Padding}"/>
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>

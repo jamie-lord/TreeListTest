@@ -28,29 +28,67 @@ namespace TreeListTest
             InitializeComponent();
 
             TreeListView.ItemsSource = Nodes;
+
+            //var t = Nodes.FlattenWithLevel(X => X.GetChildren()).Select(x => x.Item1);
         }
 
-        public ObservableCollection<Node> Nodes = new ObservableCollection<Node>(RootNodes());
+        public ObservableCollection<Node> Nodes = new ObservableCollection<Node>(RootNodes().FlattenWithLevel(X => X.GetChildren()).Select(x => x.Item1));
 
         private static IEnumerable<Node> RootNodes()
         {
-            for (int i = 0; i < 10; i++)
+            for (int i = 0; i < 100; i++)
             {
-                yield return new Node($"Root node {i}");
+                yield return new Node(0, $"Root node {i}");
+            }
+        }
+    }
+
+    public static class NodeOperations
+    {
+        public static IEnumerable<Tuple<T, int>> FlattenWithLevel<T>(this IEnumerable<T> items, Func<T, IEnumerable<T>> getChildren)
+        {
+            var stack = new Stack<Tuple<T, int>>();
+            foreach (var item in items)
+            {
+                stack.Push(new Tuple<T, int>(item, 1));
+            }
+
+            while (stack.Count > 0)
+            {
+                Tuple<T, int> current = stack.Pop();
+                yield return current;
+                foreach (T child in getChildren(current.Item1))
+                {
+                    stack.Push(new Tuple<T, int>(child, current.Item2 + 1));
+                }
             }
         }
     }
 
     public class Node
     {
+        private const int MAX_DEPTH = 4;
+
         public string Label { get; }
 
-        public Node(string name)
+        public Thickness Padding
+        {
+            get
+            {
+                return new Thickness(_depth * 10, 0, 0, 0);
+            }
+        }
+
+        public Node(int depth, string name)
         {
             Label = name;
+            _count = _randomNumber;
+            _depth = depth;
         }
 
         private static Random _random;
+        public readonly int _depth;
+        private readonly int _count;
 
         private static int _randomNumber
         {
@@ -67,9 +105,13 @@ namespace TreeListTest
 
         public IEnumerable<Node> GetChildren()
         {
-            for (int i = 0; i < _randomNumber; i++)
+            if (_depth >= MAX_DEPTH)
             {
-                yield return new Node($"Child {i} of {Label}");
+                yield break;
+            }
+            for (int i = 0; i < _count; i++)
+            {
+                yield return new Node(_depth + 1, $"Child {i} of {Label}");
             }
         }
     }

@@ -63,7 +63,7 @@ namespace TreeListTest
         {
             var dispatcher = Window.Current.Dispatcher;
 
-            return Task.Run<LoadMoreItemsResult>(async () =>
+            return Task.Run(async () =>
             {
                 uint resultCount = 0;
 
@@ -97,21 +97,21 @@ namespace TreeListTest
 
     public static class NodeOperations
     {
-        public static IEnumerable<Tuple<T, int>> FlattenWithLevel<T>(this IEnumerable<T> items, Func<T, IEnumerable<T>> getChildren)
+        public static IEnumerable<Tuple<Node, int>> FlattenWithLevel(this IEnumerable<Node> items, Func<Node, IEnumerable<Node>> getChildren)
         {
-            var stack = new Stack<Tuple<T, int>>();
+            var stack = new Stack<Tuple<Node, int>>();
             foreach (var item in items.Reverse())
             {
-                stack.Push(new Tuple<T, int>(item, 1));
+                stack.Push(new Tuple<Node, int>(item, 1));
             }
 
             while (stack.Count > 0)
             {
-                Tuple<T, int> current = stack.Pop();
+                Tuple<Node, int> current = stack.Pop();
                 yield return current;
-                foreach (T child in getChildren(current.Item1).Reverse())
+                foreach (Node child in getChildren(current.Item1).Reverse())
                 {
-                    stack.Push(new Tuple<T, int>(child, current.Item2 + 1));
+                    stack.Push(new Tuple<Node, int>(child, current.Item2 + 1));
                 }
             }
         }

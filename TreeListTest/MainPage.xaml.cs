@@ -48,7 +48,7 @@ namespace TreeListTest
         public static IEnumerable<Tuple<T, int>> FlattenWithLevel<T>(this IEnumerable<T> items, Func<T, IEnumerable<T>> getChildren)
         {
             var stack = new Stack<Tuple<T, int>>();
-            foreach (var item in items)
+            foreach (var item in items.Reverse())
             {
                 stack.Push(new Tuple<T, int>(item, 1));
             }
@@ -57,7 +57,7 @@ namespace TreeListTest
             {
                 Tuple<T, int> current = stack.Pop();
                 yield return current;
-                foreach (T child in getChildren(current.Item1))
+                foreach (T child in getChildren(current.Item1).Reverse())
                 {
                     stack.Push(new Tuple<T, int>(child, current.Item2 + 1));
                 }

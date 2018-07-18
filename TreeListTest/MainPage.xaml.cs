@@ -26,12 +26,39 @@ namespace TreeListTest
         }
     }
 
-    public class TreeDataSource : ObservableCollection<Node>, ISupportIncrementalLoading
+    public class TreeDataSource : Tree, ISupportIncrementalLoading
+    {
+        public TreeDataSource(Node rootNode)
+            : base(rootNode)
+        {
+        }
+
+        public IAsyncOperation<LoadMoreItemsResult> LoadMoreItemsAsync(uint count)
+        {
+            return LoadMoreItems().AsAsyncOperation();
+        }
+
+        public async Task<LoadMoreItemsResult> LoadMoreItems()
+        {
+            var count = await LoadMoreNodes();
+
+            if (count == 0)
+            {
+                HasMoreItems = false;
+            }
+
+            return new LoadMoreItemsResult() { Count = (uint)count };
+        }
+
+        public bool HasMoreItems { get; private set; } = true;
+    }
+
+    public class Tree : ObservableCollection<Node>
     {
         private const int PAGE_SIZE = 10;
         private readonly Node _rootNode;
 
-        public TreeDataSource(Node rootNode)
+        public Tree(Node rootNode)
         {
             _rootNode = rootNode;
             _rootNode.ChildTree.CollectionChanged += ChildTree_CollectionChanged;
@@ -49,24 +76,10 @@ namespace TreeListTest
             }
         }
 
-        public IAsyncOperation<LoadMoreItemsResult> LoadMoreItemsAsync(uint count)
+        public async Task<int> LoadMoreNodes()
         {
-            return LoadMoreItems().AsAsyncOperation();
+            return await _rootNode.LoadChildren(PAGE_SIZE);
         }
-
-        public async Task<LoadMoreItemsResult> LoadMoreItems()
-        {
-            var count = await _rootNode.LoadChildren(PAGE_SIZE);
-
-            if (count == 0)
-            {
-                HasMoreItems = false;
-            }
-
-            return new LoadMoreItemsResult() { Count = (uint)count };
-        }
-
-        public bool HasMoreItems { get; private set; } = true;
     }
 
     public class Node

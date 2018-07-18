@@ -29,63 +29,53 @@ namespace TreeListTest
             TreeListView.ItemsSource = ItemsSource;
         }
 
-        public TreeDataSource ItemsSource = new TreeDataSource(RootNodes());
+        public TreeDataSource ItemsSource = new TreeDataSource(RootNode());
 
-        private static IEnumerable<Node> RootNodes()
+        private static Node RootNode()
         {
-            for (int i = 0; i < 100; i++)
-            {
-                yield return new Node(0, $"Root node {i}", i);
-            }
+            return new Node(0, $"Root node");
         }
     }
 
     public class TreeDataSource : ObservableCollection<Node>, ISupportIncrementalLoading
     {
-        private readonly IEnumerable<Node> _nodes;
 
         private bool _hasMoreItems = true;
 
         private int _page = 0;
 
         private const int PAGE_SIZE = 10;
+        private readonly Node _rootNode;
 
-        public TreeDataSource(IEnumerable<Node> rootNodes)
+        public TreeDataSource(Node rootNode)
         {
-            _nodes = rootNodes.FlattenWithLevel(X => X.GetChildren()).Select(x => x.Item1);
+            _rootNode = rootNode;
+            _rootNode.ChildTree.CollectionChanged += ChildTree_CollectionChanged;
+        }
+
+        private void ChildTree_CollectionChanged(object sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add && e.NewItems != null)
+            {
+                for (int i = 0; i < e.NewItems.Count; i++)
+                {
+                    var nodeIndex = e.NewStartingIndex + i;
+                    Insert(nodeIndex, (Node)e.NewItems[i]);
+                }
+            }
         }
 
         public IAsyncOperation<LoadMoreItemsResult> LoadMoreItemsAsync(uint count)
         {
-            var dispatcher = Window.Current.Dispatcher;
+            return LoadMoreItems().AsAsyncOperation<LoadMoreItemsResult>();
 
-            return Task.Run(async () =>
-            {
-                uint resultCount = 0;
+        }
 
-                IEnumerable<Node> page = _nodes.GetPage(_page, PAGE_SIZE);
+        public async Task<LoadMoreItemsResult> LoadMoreItems()
+        {
+            var count = await _rootNode.LoadChildren(PAGE_SIZE);
 
-                _page++;
-
-                if (page == null || page.Count() == 0)
-                {
-                    _hasMoreItems = false;
-                }
-                else
-                {
-                    resultCount = (uint)page.Count();
-
-                    await dispatcher.RunAsync(Windows.UI.Core.CoreDispatcherPriority.Normal, () =>
-                    {
-                        foreach (var node in page)
-                        {
-                            Add(node);
-                        }
-                    });
-                }
-
-                return new LoadMoreItemsResult() { Count = resultCount };
-            }).AsAsyncOperation();
+            return new LoadMoreItemsResult() { Count = (uint)count };
         }
 
         public bool HasMoreItems => _hasMoreItems;
@@ -93,25 +83,6 @@ namespace TreeListTest
 
     public static class NodeOperations
     {
-        public static IEnumerable<Tuple<Node, int>> FlattenWithLevel(this IEnumerable<Node> items, Func<Node, IEnumerable<Node>> getChildren)
-        {
-            var stack = new Stack<Tuple<Node, int>>();
-            foreach (var item in items.Reverse())
-            {
-                stack.Push(new Tuple<Node, int>(item, 1));
-            }
-
-            while (stack.Count > 0)
-            {
-                Tuple<Node, int> current = stack.Pop();
-                yield return current;
-                foreach (Node child in getChildren(current.Item1).Reverse())
-                {
-                    stack.Push(new Tuple<Node, int>(child, current.Item2 + 1));
-                }
-            }
-        }
-
         public static IEnumerable<Node> GetPage(this IEnumerable<Node> input, int page, int pagesize)
         {
             return input.Skip(page * pagesize).Take(pagesize);
@@ -124,6 +95,8 @@ namespace TreeListTest
 
         public string Label { get; }
 
+        public static Random R = new Random();
+
         public Thickness Padding
         {
             get
@@ -132,25 +105,113 @@ namespace TreeListTest
             }
         }
 
+        public ObservableCollection<Node> ChildTree { get; } = new ObservableCollection<Node>();
+
         public Node(int depth, string name, int children = 2)
         {
             Label = name;
-            _count = children;
+            _count = R.Next(1, 50);
             _depth = depth;
         }
 
         public readonly int _depth;
         private readonly int _count;
 
-        public IEnumerable<Node> GetChildren()
+        private IList<Node> _children = new List<Node>();
+
+        public async Task<int> LoadChildren(int minToLoad)
         {
-            if (_depth == MAX_DEPTH)
+            int haveLoaded = 0;
+            foreach (var child in _children)
             {
-                yield break;
+                var c = await child.LoadChildren(minToLoad);
+                minToLoad -= c;
+                haveLoaded += c;
+
+                if (minToLoad <= 0)
+                {
+                    break;
+                }
             }
-            for (int i = 0; i < _count; i++)
+
+            while (minToLoad > 0)
             {
-                yield return new Node(_depth + 1, $"{Label}, Child {i}");
+                string item = await LoadNextItem();
+
+                if (item != null)
+                {
+                    Node node = new Node(_depth + 1, item);
+                    ChildTree.Add(node);
+                    _children.Add(node);
+                    node.ChildTree.CollectionChanged += (s, e) => ChildTree_CollectionChanged(node, e);
+
+                    minToLoad -= 1;
+                    haveLoaded += 1;
+
+
+                    if (minToLoad > 0)
+                    {
+                        var c = await node.LoadChildren(minToLoad);
+                        minToLoad -= c;
+                        haveLoaded += c;
+                    }
+
+                    if (minToLoad <= 0)
+                    {
+                        break;
+                    }
+                }
+                else
+                {
+                    break;
+                }
+            }
+
+            return haveLoaded;
+        }
+
+        private async Task<string> LoadNextItem()
+        {
+            await LoadItems();
+
+            if (_items.Count > 0)
+            {
+                return _items.Dequeue();
+            }
+
+            return null;
+        }
+
+        private Queue<string> _items;
+
+        private async Task LoadItems()
+        {
+            if (_items == null)
+            {
+                _items = new Queue<string>();
+
+                if (_depth < MAX_DEPTH)
+                {
+                    await Task.Delay(500);
+                    for (int i = 0; i < _count; i++)
+                    {
+                        _items.Enqueue($"{Label}, Child {i}");
+                    }
+                }
+            }
+        }
+
+        private void ChildTree_CollectionChanged(Node sender, System.Collections.Specialized.NotifyCollectionChangedEventArgs e)
+        {
+            int startIndex = ChildTree.IndexOf(sender);
+
+            if (e.Action == System.Collections.Specialized.NotifyCollectionChangedAction.Add && e.NewItems != null)
+            {
+                for (int i = 0; i < e.NewItems.Count; i++)
+                {
+                    var nodeIndex = startIndex + 1 + e.NewStartingIndex + i;
+                    ChildTree.Insert(nodeIndex, (Node)e.NewItems[i]);
+                }
             }
         }
     }

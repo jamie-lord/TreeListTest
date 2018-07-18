@@ -1,25 +1,14 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
-using System.IO;
-using System.Linq;
-using System.Runtime.InteropServices.WindowsRuntime;
 using System.Threading.Tasks;
 using Windows.Foundation;
-using Windows.Foundation.Collections;
 using Windows.UI.Xaml;
 using Windows.UI.Xaml.Controls;
-using Windows.UI.Xaml.Controls.Primitives;
 using Windows.UI.Xaml.Data;
-using Windows.UI.Xaml.Input;
-using Windows.UI.Xaml.Media;
-using Windows.UI.Xaml.Navigation;
 
 namespace TreeListTest
 {
-    /// <summary>
-    /// An empty page that can be used on its own or navigated to within a Frame.
-    /// </summary>
     public sealed partial class MainPage : Page
     {
         public MainPage()
@@ -39,11 +28,6 @@ namespace TreeListTest
 
     public class TreeDataSource : ObservableCollection<Node>, ISupportIncrementalLoading
     {
-
-        private bool _hasMoreItems = true;
-
-        private int _page = 0;
-
         private const int PAGE_SIZE = 10;
         private readonly Node _rootNode;
 
@@ -67,31 +51,27 @@ namespace TreeListTest
 
         public IAsyncOperation<LoadMoreItemsResult> LoadMoreItemsAsync(uint count)
         {
-            return LoadMoreItems().AsAsyncOperation<LoadMoreItemsResult>();
-
+            return LoadMoreItems().AsAsyncOperation();
         }
 
         public async Task<LoadMoreItemsResult> LoadMoreItems()
         {
             var count = await _rootNode.LoadChildren(PAGE_SIZE);
 
+            if (count == 0)
+            {
+                HasMoreItems = false;
+            }
+
             return new LoadMoreItemsResult() { Count = (uint)count };
         }
 
-        public bool HasMoreItems => _hasMoreItems;
-    }
-
-    public static class NodeOperations
-    {
-        public static IEnumerable<Node> GetPage(this IEnumerable<Node> input, int page, int pagesize)
-        {
-            return input.Skip(page * pagesize).Take(pagesize);
-        }
+        public bool HasMoreItems { get; private set; } = true;
     }
 
     public class Node
     {
-        private const int MAX_DEPTH = 4;
+        private const int MAX_DEPTH = 10;
 
         public string Label { get; }
 
@@ -110,11 +90,12 @@ namespace TreeListTest
         public Node(int depth, string name, int children = 2)
         {
             Label = name;
-            _count = R.Next(1, 50);
+            _count = R.Next(1, 3);
             _depth = depth;
         }
 
         public readonly int _depth;
+
         private readonly int _count;
 
         private IList<Node> _children = new List<Node>();
@@ -144,18 +125,14 @@ namespace TreeListTest
                     ChildTree.Add(node);
                     _children.Add(node);
                     node.ChildTree.CollectionChanged += (s, e) => ChildTree_CollectionChanged(node, e);
-
                     minToLoad -= 1;
                     haveLoaded += 1;
-
-
                     if (minToLoad > 0)
                     {
                         var c = await node.LoadChildren(minToLoad);
                         minToLoad -= c;
                         haveLoaded += c;
                     }
-
                     if (minToLoad <= 0)
                     {
                         break;
@@ -166,7 +143,6 @@ namespace TreeListTest
                     break;
                 }
             }
-
             return haveLoaded;
         }
 

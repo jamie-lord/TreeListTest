@@ -107,7 +107,7 @@ namespace TreeListTest
             _depth = depth;
         }
 
-        public readonly int _depth;
+        private readonly int _depth;
 
         private readonly int _count;
 

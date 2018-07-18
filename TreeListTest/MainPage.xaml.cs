@@ -15,8 +15,6 @@ using Windows.UI.Xaml.Input;
 using Windows.UI.Xaml.Media;
 using Windows.UI.Xaml.Navigation;
 
-// The Blank Page item template is documented at https://go.microsoft.com/fwlink/?LinkId=402352&clcid=0x409
-
 namespace TreeListTest
 {
     /// <summary>
@@ -29,8 +27,6 @@ namespace TreeListTest
             InitializeComponent();
 
             TreeListView.ItemsSource = ItemsSource;
-
-            //var t = Nodes.FlattenWithLevel(X => X.GetChildren()).Select(x => x.Item1);
         }
 
         public TreeDataSource ItemsSource = new TreeDataSource(RootNodes());
@@ -39,7 +35,7 @@ namespace TreeListTest
         {
             for (int i = 0; i < 100; i++)
             {
-                yield return new Node(0, $"Root node {i}");
+                yield return new Node(0, $"Root node {i}", i);
             }
         }
     }
@@ -136,39 +132,25 @@ namespace TreeListTest
             }
         }
 
-        public Node(int depth, string name)
+        public Node(int depth, string name, int children = 2)
         {
             Label = name;
-            _count = _randomNumber;
+            _count = children;
             _depth = depth;
         }
 
-        private static Random _random;
         public readonly int _depth;
         private readonly int _count;
 
-        private static int _randomNumber
-        {
-            get
-            {
-                if (_random == null)
-                {
-                    _random = new Random();
-                }
-
-                return _random.Next(0, 5);
-            }
-        }
-
         public IEnumerable<Node> GetChildren()
         {
-            if (_depth >= MAX_DEPTH)
+            if (_depth == MAX_DEPTH)
             {
                 yield break;
             }
             for (int i = 0; i < _count; i++)
             {
-                yield return new Node(_depth + 1, $"Child {i} of {Label}");
+                yield return new Node(_depth + 1, $"{Label}, Child {i}");
             }
         }
     }

@@ -53,7 +53,7 @@ namespace TreeListTest
         public bool HasMoreItems { get; private set; } = true;
     }
 
-    public class Tree : ObservableCollection<Node>
+    public abstract class Tree : ObservableCollection<Node>
     {
         private const int PAGE_SIZE = 10;
         private readonly Node _rootNode;
@@ -76,7 +76,7 @@ namespace TreeListTest
             }
         }
 
-        public async Task<int> LoadMoreNodes()
+        protected async Task<int> LoadMoreNodes()
         {
             return await _rootNode.LoadChildren(PAGE_SIZE);
         }
